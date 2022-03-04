@@ -25,6 +25,8 @@ class Database:
 
 
 class PostgresqlManager(Database):
+    import pandas as pd
+
     def __init__(self, dotenv_path=".env"):
         super().__init__(dotenv_path=dotenv_path)
 
@@ -79,6 +81,28 @@ class PostgresqlManager(Database):
             else:
                 return cursor.fetchall()
 
+    def copy_from(self, df: pd.DataFrame, table: str, conn=None, reuse_connection=False, commit=False):
+        import psycopg2.extras
+        import logging
+
+        try:
+            df_columns = list(df)
+            columns = ",".join(df_columns)
+            values = "VALUES({})".format(",".join(["%s" for _ in df_columns]))
+
+            _conn = conn or self.create_connection(reuse_connection)
+            cursor = _conn.cursor()
+
+            sql = "INSERT INTO {} ({}) {}".format(table, columns, values)
+
+            psycopg2.extras.execute_batch(cursor, sql, df.values)
+            if commit:
+                _conn.commit()  # to write on db, commit() is required.
+
+        except Exception as e:
+            logging.error(e)
+            return e
+
     @staticmethod
     def convert_fetchall_to_pd(data: list):
         import pandas as pd
@@ -87,3 +111,19 @@ class PostgresqlManager(Database):
 
     def __del__(self):
         self.conn and self.conn.close()
+
+
+if __name__ == "__main__":
+    pgm = PostgresqlManager()
+    sql1 = """
+    CREATE TABLE phonebook(phone text, name text, address text);
+    """
+    pgm.execute_sql(sql1, commit=True)
+
+    sql2 = """
+    INSERT INTO phonebook(phone, name, address) VALUES ('+1 875 856 0403', 'Suyeol Yun', '224 Albany St, Cambridge, MA')
+    """
+    pgm.execute_sql(sql2, commit=True)
+
+
+
