@@ -34,6 +34,8 @@ def scrape(name):
         href = _add_https_prefix(href)
         print(name)
         print(href)
+        if 'search' in href:
+            return 'failed'
 
         pm = PostgresqlManager(dotenv_path='../.env')
         sql = """
@@ -50,7 +52,9 @@ def scrape(name):
 if __name__ == "__main__":
     df = pd.read_csv('./apples.csv')
     df["url"] = df.apply(lambda x: scrape(x.client_name), axis=1)
+    df.drop(df.index[df['url'] == 'failed'], inplace=True)
     df.columns = ['name', 'url']
+    df = df.drop_duplicates()
     pgm = PostgresqlManager(dotenv_path='../.env')
     pgm.copy_from(df=df, table="company", commit=True)
     pass
